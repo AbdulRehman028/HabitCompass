@@ -4,14 +4,23 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:api": "node server/index.js",
     "build": "next build",
     "start": "next start",
+    "start:api": "node server/index.js",
     "lint": "eslint"
   },
   "dependencies": {
+    "@reduxjs/toolkit": "^2.11.2",
+    "@supabase/supabase-js": "^2.104.1",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
     "next": "16.2.4",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "react-redux": "^9.2.0",
+    "recharts": "^3.8.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
