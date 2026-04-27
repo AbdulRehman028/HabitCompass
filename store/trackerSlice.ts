@@ -1,5 +1,5 @@
 import { createAsyncThunk, createSlice, PayloadAction } from "@reduxjs/toolkit";
-import { CellState, DAYS, HABIT_ROWS, SCORE_ROWS } from "@/components/core/tracker/constants";
+import { CellState, DAYS, HABIT_CATEGORIES, HABIT_ROWS, SCORE_ROWS } from "@/components/core/tracker/constants";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import { enqueueToast } from "@/store/uiSlice";
 
@@ -7,6 +7,9 @@ export type TrackerSnapshot = {
   name: string;
   month: string;
   habits: string[];
+  habitTargets: number[];
+  habitCategories: string[];
+  habitTags: string[][];
   trackerMarks: CellState[][];
   scoreMarks: CellState[][];
 };
@@ -79,6 +82,9 @@ function createEmptySnapshot(): TrackerSnapshot {
     name: "",
     month: "",
     habits: Array.from({ length: HABIT_ROWS }, () => ""),
+    habitTargets: Array.from({ length: HABIT_ROWS }, () => 5),
+    habitCategories: Array.from({ length: HABIT_ROWS }, () => "General"),
+    habitTags: Array.from({ length: HABIT_ROWS }, () => [] as string[]),
     trackerMarks: createMatrix(HABIT_ROWS, DAYS),
     scoreMarks: createMatrix(SCORE_ROWS, DAYS),
   };
@@ -107,6 +113,27 @@ function normalizeSnapshot(raw: Partial<TrackerSnapshot> | null | undefined): Tr
     habits: Array.from({ length: HABIT_ROWS }, (_, index) => {
       const value = parsed.habits?.[index];
       return typeof value === "string" ? value : "";
+    }),
+    habitTargets: Array.from({ length: HABIT_ROWS }, (_, index) => {
+      const rawValue = parsed.habitTargets?.[index];
+      if (typeof rawValue !== "number" || Number.isNaN(rawValue)) return 5;
+      return Math.min(7, Math.max(1, Math.round(rawValue)));
+    }),
+    habitCategories: Array.from({ length: HABIT_ROWS }, (_, index) => {
+      const value = parsed.habitCategories?.[index];
+      if (typeof value !== "string") return "General";
+      return HABIT_CATEGORIES.includes(value as (typeof HABIT_CATEGORIES)[number]) ? value : "General";
+    }),
+    habitTags: Array.from({ length: HABIT_ROWS }, (_, index) => {
+      const rawTags = parsed.habitTags?.[index];
+      if (!Array.isArray(rawTags)) return [];
+
+      const normalized = rawTags
+        .filter((item): item is string => typeof item === "string")
+        .map((item) => item.trim())
+        .filter((item, itemIndex, list) => item.length > 0 && list.indexOf(item) === itemIndex);
+
+      return normalized;
     }),
     trackerMarks: normalizeMatrix(parsed.trackerMarks, HABIT_ROWS, DAYS),
     scoreMarks: normalizeMatrix(parsed.scoreMarks, SCORE_ROWS, DAYS),
@@ -231,6 +258,25 @@ const trackerSlice = createSlice({
       const { index, value } = action.payload;
       state.snapshot.habits[index] = value;
     },
+    setHabitTarget(state, action: PayloadAction<{ index: number; value: number }>) {
+      const { index, value } = action.payload;
+      state.snapshot.habitTargets[index] = Math.min(7, Math.max(1, Math.round(value)));
+    },
+    setHabitCategory(state, action: PayloadAction<{ index: number; value: string }>) {
+      const { index, value } = action.payload;
+      state.snapshot.habitCategories[index] = HABIT_CATEGORIES.includes(value as (typeof HABIT_CATEGORIES)[number])
+        ? value
+        : "General";
+    },
+    setHabitTags(state, action: PayloadAction<{ index: number; value: string }>) {
+      const { index, value } = action.payload;
+      const tags = value
+        .split(",")
+        .map((item) => item.trim())
+        .filter((item, itemIndex, list) => item.length > 0 && list.indexOf(item) === itemIndex);
+
+      state.snapshot.habitTags[index] = tags;
+    },
     toggleTrackerCell(state, action: PayloadAction<{ rowIndex: number; dayIndex: number }>) {
       const { rowIndex, dayIndex } = action.payload;
       const current = state.snapshot.trackerMarks[rowIndex][dayIndex];
@@ -272,6 +318,7 @@ const trackerSlice = createSlice({
   },
 });
 
-export const { setName, setMonth, clearAll, setHabit, toggleTrackerCell, toggleScoreCell } = trackerSlice.actions;
+export const { setName, setMonth, clearAll, setHabit, setHabitTarget, setHabitCategory, setHabitTags, toggleTrackerCell, toggleScoreCell } =
+  trackerSlice.actions;
 
 export default trackerSlice.reducer;

@@ -83,7 +83,7 @@ export default function SignupPage() {
 
       if (data.session) {
         dispatch(enqueueToast({ tone: "success", message: "Account created. You are now signed in." }));
-        router.replace("/dashboard");
+        router.replace("/onboarding");
         router.refresh();
         return;
       }
