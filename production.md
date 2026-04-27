@@ -1,4 +1,4 @@
-# HabitCompass – Complete Production Deployment Guide
+# HabitCompass – Complete Production Deployment Guide with errros
 
 **HabitCompass** is a Next.js habit tracking application with a Vercel frontend and Supabase auth/database.
 
