@@ -302,10 +302,20 @@ git clone https://github.com/YOUR_USERNAME/YOUR_REPO.git .
 npm install
 ```
 
+Important: the trailing `.` in the `git clone` command clones the repo into the current folder. If you omit it, Git creates a nested folder like `/var/www/habitcompass/HabitCompass`, and `npm install` from `/var/www/habitcompass` will fail with `ENOENT` because `package.json` is one level deeper.
+
+If you already cloned without the trailing dot, run:
+
+```bash
+cd /var/www/habitcompass/HabitCompass
+npm install
+```
+
 ### 6.5 Configure Backend Environment
 
 ```bash
-cd /var/www/habitcompass/server
+# If the repo was cloned into a nested folder, use the repo root first:
+cd /var/www/habitcompass/HabitCompass/server
 cat > .env << EOF
 API_PORT=4000
 NODE_ENV=production
@@ -323,9 +333,12 @@ cat .env
 
 ### 6.6 Start Backend with PM2
 
-From `/var/www/habitcompass`:
+From the repo root, `/var/www/habitcompass/HabitCompass`:
 
 ```bash
+# Return to the repo root before starting PM2.
+cd /var/www/habitcompass/HabitCompass
+
 # Start the Express API
 pm2 start npm --name "habitcompass-api" -- run start:api
 
@@ -337,6 +350,10 @@ pm2 startup
 ```
 
 Copy and run the output from `pm2 startup` command.
+
+The `pm2 startup` output is expected and only enables PM2 on reboot. After that, `pm2 status` should show the app as `online`. If it shows `errored`, run `pm2 logs habitcompass-api --lines 100` from the repo root to see the crash reason.
+
+If the logs say `Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY`, make sure you are running the updated backend code that loads `server/.env`, then restart PM2 after pulling the latest changes.
 
 Verify running:
 
@@ -963,6 +980,8 @@ cd /var/www/habit-tracker
 git clone https://github.com/YOUR_USERNAME/YOUR_REPO.git .
 npm install
 ```
+
+If you cloned without the trailing `.` by mistake, `npm install` must be run inside the cloned repo directory instead of the parent folder.
 
 ### 9.5 Configure backend env
 
