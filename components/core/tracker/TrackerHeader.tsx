@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { clearAll, setMonth, setName } from "@/store/trackerSlice";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
+import { enqueueToast } from "@/store/uiSlice";
 
 export default function TrackerHeader() {
   const dispatch = useAppDispatch();
@@ -12,8 +13,14 @@ export default function TrackerHeader() {
   const month = useAppSelector((state) => state.tracker.snapshot.month);
 
   const handleSignOut = async () => {
-    await supabaseBrowser.auth.signOut();
-    router.replace("/login");
+    const { error } = await supabaseBrowser.auth.signOut({ scope: "local" });
+    if (error) {
+      dispatch(enqueueToast({ tone: "error", message: "Could not sign out. Please try again." }));
+      return;
+    }
+
+    dispatch(enqueueToast({ tone: "info", message: "Signed out successfully." }));
+    router.replace("/");
   };
 
   return (

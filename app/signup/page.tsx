@@ -4,9 +4,12 @@ import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import AuthShell from "@/components/common/AuthShell";
 import { isSupabaseConfigured, supabaseBrowser } from "@/lib/supabaseBrowser";
+import { useAppDispatch } from "@/store/hooks";
+import { enqueueToast } from "@/store/uiSlice";
 
 export default function SignupPage() {
   const router = useRouter();
+  const dispatch = useAppDispatch();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -20,7 +23,7 @@ export default function SignupPage() {
     const checkSession = async () => {
       const { data } = await supabaseBrowser.auth.getSession();
       if (active && data.session) {
-        router.replace("/");
+        router.replace("/dashboard");
       }
     };
 
@@ -53,11 +56,13 @@ export default function SignupPage() {
     setMessage("");
 
     if (password.length < 6) {
+      dispatch(enqueueToast({ tone: "error", message: "Password must be at least 6 characters." }));
       setError("Password must be at least 6 characters.");
       return;
     }
 
     if (password !== confirmPassword) {
+      dispatch(enqueueToast({ tone: "error", message: "Passwords do not match." }));
       setError("Passwords do not match.");
       return;
     }
@@ -71,16 +76,24 @@ export default function SignupPage() {
       });
 
       if (signupError) {
+        dispatch(enqueueToast({ tone: "error", message: signupError.message }));
         setError(signupError.message);
         return;
       }
 
       if (data.session) {
-        router.replace("/");
+        dispatch(enqueueToast({ tone: "success", message: "Account created. You are now signed in." }));
+        router.replace("/dashboard");
         router.refresh();
         return;
       }
 
+      dispatch(
+        enqueueToast({
+          tone: "info",
+          message: "Account created. Verify your email, then log in.",
+        })
+      );
       setMessage("Account created. Please verify your email, then log in.");
     } finally {
       setIsSubmitting(false);

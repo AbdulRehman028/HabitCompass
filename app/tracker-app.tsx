@@ -25,8 +25,8 @@ export default function TrackerApp() {
     const timeout = window.setTimeout(async () => {
       try {
         await dispatch(saveTrackerSnapshot()).unwrap();
-      } catch (error) {
-        console.error("Failed to save tracker progress", error);
+      } catch {
+        // User-facing error messaging is dispatched from the thunk.
       }
     }, 300);
 

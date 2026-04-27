@@ -1,6 +1,7 @@
 import { createAsyncThunk, createSlice, PayloadAction } from "@reduxjs/toolkit";
 import { CellState, DAYS, HABIT_ROWS, SCORE_ROWS } from "@/components/core/tracker/constants";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
+import { enqueueToast } from "@/store/uiSlice";
 
 export type TrackerSnapshot = {
   name: string;
@@ -18,6 +19,56 @@ type TrackerState = {
 };
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4000";
+
+async function getAccessToken(): Promise<string | null> {
+  const {
+    data: { session },
+  } = await supabaseBrowser.auth.getSession();
+
+  if (session?.access_token) {
+    return session.access_token;
+  }
+
+  const { data, error } = await supabaseBrowser.auth.refreshSession();
+  if (error) {
+    return null;
+  }
+
+  return data.session?.access_token ?? null;
+}
+
+async function fetchWithAuthRetry(input: string, init: RequestInit = {}): Promise<Response> {
+  const token = await getAccessToken();
+  if (!token) {
+    return new Response(null, { status: 401 });
+  }
+
+  const headers = {
+    ...(init.headers || {}),
+    Authorization: `Bearer ${token}`,
+  };
+
+  let response = await fetch(input, { ...init, headers });
+  if (response.status !== 401) {
+    return response;
+  }
+
+  const { data, error } = await supabaseBrowser.auth.refreshSession();
+  const refreshedToken = error ? null : data.session?.access_token;
+  if (!refreshedToken) {
+    return response;
+  }
+
+  response = await fetch(input, {
+    ...init,
+    headers: {
+      ...(init.headers || {}),
+      Authorization: `Bearer ${refreshedToken}`,
+    },
+  });
+
+  return response;
+}
 
 function createMatrix(rows: number, cols: number): CellState[][] {
   return Array.from({ length: rows }, () => Array.from({ length: cols }, () => 0 as CellState));
@@ -64,25 +115,40 @@ function normalizeSnapshot(raw: Partial<TrackerSnapshot> | null | undefined): Tr
 
 export const initializeTracker = createAsyncThunk(
   "tracker/initialize",
-  async () => {
+  async (_, thunkApi) => {
     const {
       data: { session },
     } = await supabaseBrowser.auth.getSession();
 
-    const accessToken = session?.access_token;
     const userId = session?.user?.id || "";
-
-    if (!accessToken || !userId) {
+    if (!userId) {
+      thunkApi.dispatch(
+        enqueueToast({
+          tone: "info",
+          message: "Please log in to load your progress.",
+        })
+      );
       return { clientId: "", snapshot: null as TrackerSnapshot | null };
     }
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/progress/me`, {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      });
+      const response = await fetchWithAuthRetry(`${API_BASE_URL}/api/progress/me`);
       if (!response.ok) {
+        if (response.status === 401) {
+          thunkApi.dispatch(
+            enqueueToast({
+              tone: "error",
+              message: "Your session expired. Please log in again.",
+            })
+          );
+        } else {
+          thunkApi.dispatch(
+            enqueueToast({
+              tone: "error",
+              message: "We could not load your saved progress.",
+            })
+          );
+        }
         throw new Error(`Failed to load progress: ${response.status}`);
       }
 
@@ -93,6 +159,12 @@ export const initializeTracker = createAsyncThunk(
       };
     } catch (error) {
       console.error("Failed to fetch saved tracker progress", error);
+      thunkApi.dispatch(
+        enqueueToast({
+          tone: "error",
+          message: "Could not load progress. Check connection and try again.",
+        })
+      );
       return { clientId: userId, snapshot: null as TrackerSnapshot | null };
     }
   }
@@ -106,23 +178,30 @@ export const saveTrackerSnapshot = createAsyncThunk(
 
     if (!hasLoadedRemote) return;
 
-    const {
-      data: { session },
-    } = await supabaseBrowser.auth.getSession();
-    const accessToken = session?.access_token;
-
-    if (!accessToken) return;
-
-    const response = await fetch(`${API_BASE_URL}/api/progress/me`, {
+    const response = await fetchWithAuthRetry(`${API_BASE_URL}/api/progress/me`, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${accessToken}`,
       },
       body: JSON.stringify({ snapshot }),
     });
 
     if (!response.ok) {
+      if (response.status === 401) {
+        thunkApi.dispatch(
+          enqueueToast({
+            tone: "error",
+            message: "Your session expired. Please log in again.",
+          })
+        );
+      } else {
+        thunkApi.dispatch(
+          enqueueToast({
+            tone: "error",
+            message: "Auto-save failed. Your latest changes are not in cloud yet.",
+          })
+        );
+      }
       throw new Error(`Failed to save progress: ${response.status}`);
     }
   }

@@ -4,9 +4,12 @@ import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import AuthShell from "@/components/common/AuthShell";
 import { isSupabaseConfigured, supabaseBrowser } from "@/lib/supabaseBrowser";
+import { useAppDispatch } from "@/store/hooks";
+import { enqueueToast } from "@/store/uiSlice";
 
 export default function LoginPage() {
   const router = useRouter();
+  const dispatch = useAppDispatch();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -18,7 +21,7 @@ export default function LoginPage() {
     const checkSession = async () => {
       const { data } = await supabaseBrowser.auth.getSession();
       if (active && data.session) {
-        router.replace("/");
+        router.replace("/dashboard");
       }
     };
 
@@ -57,11 +60,13 @@ export default function LoginPage() {
       });
 
       if (signInError) {
+        dispatch(enqueueToast({ tone: "error", message: signInError.message }));
         setError(signInError.message);
         return;
       }
 
-      router.replace("/");
+      dispatch(enqueueToast({ tone: "success", message: "Welcome back. Signed in successfully." }));
+      router.replace("/dashboard");
       router.refresh();
     } finally {
       setIsSubmitting(false);
