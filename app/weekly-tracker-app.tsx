@@ -1,14 +1,15 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import HabitAddHeader from "@/components/core/tracker/HabitAddHeader";
 import DateRangeSelector, { type DateRange } from "@/components/core/tracker/DateRangeSelector";
-import HabitTrackerTable from "@/components/core/tracker/HabitTrackerTable";
+import SimpleDynamicHabitTable from "@/components/core/tracker/SimpleDynamicHabitTable";
 import ScoreGraphTable from "@/components/core/tracker/ScoreGraphTable";
+import NotesSection from "@/components/core/tracker/NotesSection";
 import TrackerFooter from "@/components/core/tracker/TrackerFooter";
+import AppShell from "@/components/common/AppShell";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
-import { initializeTracker, saveTrackerSnapshot } from "@/store/trackerSlice";
+import { initializeTracker, saveTrackerSnapshot, setCustomRange, acknowledgeAutosaveSkip } from "@/store/trackerSlice";
 
 export default function WeeklyTrackerApp() {
   const dispatch = useAppDispatch();
@@ -21,15 +22,56 @@ export default function WeeklyTrackerApp() {
     void dispatch(initializeTracker());
   }, [dispatch]);
 
+  // When snapshot loads from remote, hydrate custom range UI
+  const snapshot = useAppSelector((s) => s.tracker.snapshot);
+  const skipAutosaveAfterInit = useAppSelector((s) => s.tracker.skipAutosaveAfterInit);
+  const clientId = useAppSelector((s) => s.tracker.clientId);
+  const hasLoadedRemote = useAppSelector((s) => s.tracker.hasLoadedRemote);
   useEffect(() => {
+    if (snapshot.rangeStartISO && snapshot.rangeEndISO) {
+      try {
+        const start = new Date(snapshot.rangeStartISO);
+        const end = new Date(snapshot.rangeEndISO);
+        if (!Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime()) && start <= end) {
+          // eslint-disable-next-line react-hooks/set-state-in-effect
+          setSelectedRange("custom");
+          setCustomStart(start);
+          setCustomEnd(end);
+        }
+      } catch {
+        // ignore
+      }
+    }
+  }, [snapshot.rangeStartISO, snapshot.rangeEndISO]);
+
+  useEffect(() => {
+    if (!clientId || !hasLoadedRemote) return;
+
+    if (skipAutosaveAfterInit) {
+      dispatch(acknowledgeAutosaveSkip());
+      return;
+    }
+
     const debounceTimer = setTimeout(() => {
       void dispatch(saveTrackerSnapshot());
     }, 300);
 
     return () => clearTimeout(debounceTimer);
-  }, [dispatch]);
+  }, [dispatch, snapshot, clientId, hasLoadedRemote, skipAutosaveAfterInit]);
 
   const activeHabits = habits.filter((h) => h && h.trim() !== "").length;
+
+  const getDaysToShow = (): number => {
+    if (selectedRange === "7") return 7;
+    if (selectedRange === "30") return 30;
+    if (selectedRange === "31") return 31;
+    if (selectedRange === "custom" && customStart && customEnd) {
+      const diffTime = Math.abs(customEnd.getTime() - customStart.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+      return diffDays;
+    }
+    return 7;
+  };
 
   const getRangeLabel = () => {
     if (selectedRange === "7") return "Last 7 Days";
@@ -41,31 +83,23 @@ export default function WeeklyTrackerApp() {
     return "All Time";
   };
 
+  const daysToShow = getDaysToShow();
+
   return (
-    <main className="min-h-screen space-y-6 bg-gradient-to-br from-slate-50 via-white to-slate-100 px-4 py-6 sm:px-6">
-      <section className="mx-auto max-w-7xl space-y-6">
+    <AppShell>
+      <section className="mx-auto max-w-6xl space-y-6">
         {/* Header Section */}
         <div className="space-y-4 rounded-4xl border border-slate-200 bg-white p-6 shadow-[0_20px_60px_rgba(15,23,42,0.08)] sm:p-8">
-          <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-end">
-            <div className="flex-1">
-              <p className="inline-flex rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-xs font-bold uppercase tracking-[0.2em] text-amber-800">
-                Habit Tracker
-              </p>
-              <h1 className="mt-4 font-brand-display text-4xl leading-none tracking-tight text-slate-900 sm:text-5xl">
-                Your Habits
-              </h1>
-              <p className="mt-3 text-slate-600">
-                Manage your habits with custom date ranges and flexible tracking.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-3 sm:flex-col">
-              <Link
-                href="/overview"
-                className="rounded-full border-2 border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-900 transition hover:border-slate-400 hover:bg-slate-50"
-              >
-                Overview
-              </Link>
-            </div>
+          <div>
+            <p className="inline-flex rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-xs font-bold uppercase tracking-[0.2em] text-amber-800">
+              Habit Tracker
+            </p>
+            <h1 className="mt-4 font-brand-display text-4xl leading-none tracking-tight text-slate-900 sm:text-5xl">
+              Build Your Tracking Window
+            </h1>
+            <p className="mt-3 text-slate-600">
+              Add habits, choose a custom date range, and mark daily status in one focused table.
+            </p>
           </div>
 
           {/* Quick Stats */}
@@ -79,8 +113,8 @@ export default function WeeklyTrackerApp() {
               <p className="mt-2 font-semibold text-slate-900 text-sm">{getRangeLabel()}</p>
             </div>
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-xs font-bold uppercase tracking-[0.1em] text-slate-500">Today</p>
-              <p className="mt-2 font-semibold text-slate-900">{new Date().toLocaleDateString()}</p>
+              <p className="text-xs font-bold uppercase tracking-[0.1em] text-slate-500">Days Tracked</p>
+              <p className="mt-2 font-brand-display text-2xl text-slate-900">{daysToShow}</p>
             </div>
           </div>
         </div>
@@ -91,19 +125,34 @@ export default function WeeklyTrackerApp() {
         {/* Date Range Selector */}
         <DateRangeSelector
           selectedRange={selectedRange}
-          onRangeChange={setSelectedRange}
+          onRangeChange={(r) => {
+            setSelectedRange(r);
+            // clear custom selection if switching away
+            if (r !== "custom") {
+              setCustomStart(undefined);
+              setCustomEnd(undefined);
+              // also clear persisted custom range metadata
+              void dispatch(setCustomRange({ startISO: "", endISO: "" }));
+            }
+          }}
           customStart={customStart}
           customEnd={customEnd}
           onCustomRangeChange={(start, end) => {
             setCustomStart(start);
             setCustomEnd(end);
+            // persist custom range ISO to snapshot and save
+            void dispatch(setCustomRange({ startISO: start.toISOString(), endISO: end.toISOString() }));
+            void dispatch(saveTrackerSnapshot());
           }}
         />
 
-        {/* Tracker Table */}
-        <div className="rounded-4xl border border-slate-200 bg-white p-6 shadow-[0_20px_60px_rgba(15,23,42,0.08)] sm:p-8">
-          <HabitTrackerTable />
+        {/* Simple Habit Tracker Table */}
+        <div>
+          <SimpleDynamicHabitTable daysToShow={daysToShow} />
         </div>
+
+        {/* Notes Section */}
+        <NotesSection />
 
         {/* Score Section */}
         <section className="space-y-4 rounded-4xl border border-slate-200 bg-white p-6 shadow-[0_20px_60px_rgba(15,23,42,0.08)] sm:p-8">
@@ -117,6 +166,6 @@ export default function WeeklyTrackerApp() {
         {/* Footer */}
         <TrackerFooter />
       </section>
-    </main>
+    </AppShell>
   );
 }

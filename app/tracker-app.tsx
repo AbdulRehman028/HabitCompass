@@ -1,19 +1,20 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect } from "react";
 import BasicHabitTrackerTable from "@/components/core/tracker/BasicHabitTrackerTable";
 import ScoreGraphTable from "@/components/core/tracker/ScoreGraphTable";
 import ScorePreview from "@/components/core/tracker/ScorePreview";
 import TrackerFooter from "@/components/core/tracker/TrackerFooter";
+import AppShell from "@/components/common/AppShell";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
-import { initializeTracker, saveTrackerSnapshot } from "@/store/trackerSlice";
+import { initializeTracker, saveTrackerSnapshot, acknowledgeAutosaveSkip } from "@/store/trackerSlice";
 
 export default function TrackerApp() {
   const dispatch = useAppDispatch();
   const snapshot = useAppSelector((state) => state.tracker.snapshot);
   const clientId = useAppSelector((state) => state.tracker.clientId);
   const hasLoadedRemote = useAppSelector((state) => state.tracker.hasLoadedRemote);
+  const skipAutosaveAfterInit = useAppSelector((state) => state.tracker.skipAutosaveAfterInit);
 
   useEffect(() => {
     void dispatch(initializeTracker());
@@ -21,6 +22,14 @@ export default function TrackerApp() {
 
   useEffect(() => {
     if (!clientId || !hasLoadedRemote) return;
+
+    // If the initializer indicated there's no remote snapshot, skip the very
+    // next autosave to avoid accidentally overwriting server state.
+    if (skipAutosaveAfterInit) {
+      // clear the flag; do not save this time
+      dispatch(acknowledgeAutosaveSkip());
+      return;
+    }
 
     const timeout = window.setTimeout(async () => {
       try {
@@ -33,7 +42,7 @@ export default function TrackerApp() {
     return () => {
       window.clearTimeout(timeout);
     };
-  }, [dispatch, snapshot, clientId, hasLoadedRemote]);
+  }, [dispatch, snapshot, clientId, hasLoadedRemote, skipAutosaveAfterInit]);
 
   const completedToday = snapshot?.trackerMarks
     ? snapshot.trackerMarks.reduce((sum, marks) => {
@@ -45,30 +54,20 @@ export default function TrackerApp() {
   const activeHabits = snapshot?.habits?.filter((h) => h && h.trim() !== "").length || 0;
 
   return (
-    <main className="min-h-screen space-y-6 bg-gradient-to-br from-slate-50 via-white to-slate-100 px-4 py-6 sm:px-6">
-      <section className="mx-auto max-w-7xl space-y-6">
+    <AppShell>
+      <section className="mx-auto max-w-6xl space-y-6">
         {/* Header Section */}
         <div className="space-y-4 rounded-4xl border border-slate-200 bg-white p-6 shadow-[0_20px_60px_rgba(15,23,42,0.08)] sm:p-8">
-          <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-end">
-            <div className="flex-1">
-              <p className="inline-flex rounded-full border border-sky-300 bg-sky-50 px-3 py-1 text-xs font-bold uppercase tracking-[0.2em] text-sky-800">
-                Monthly View
-              </p>
-              <h1 className="mt-4 font-brand-display text-4xl leading-none tracking-tight text-slate-900 sm:text-5xl">
-                Your Habits
-              </h1>
-              <p className="mt-3 text-slate-600">
-                Track daily completions across the full month. Click any habit to see details.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-3 sm:flex-col">
-              <Link
-                href="/habit-tracker"
-                className="rounded-full border-2 border-slate-900 bg-slate-900 px-4 py-2 text-sm font-bold text-white transition hover:-translate-y-0.5 hover:bg-slate-800"
-              >
-                Weekly Goals
-              </Link>
-            </div>
+          <div>
+            <p className="inline-flex rounded-full border border-sky-300 bg-sky-50 px-3 py-1 text-xs font-bold uppercase tracking-[0.2em] text-sky-800">
+              Overview
+            </p>
+            <h1 className="mt-4 font-brand-display text-4xl leading-none tracking-tight text-slate-900 sm:text-5xl">
+              Habit Compass Overview
+            </h1>
+            <p className="mt-3 text-slate-600">
+              View your monthly completion at a glance, then drill into each habit card for detail.
+            </p>
           </div>
 
           {/* Quick Stats */}
@@ -106,7 +105,7 @@ export default function TrackerApp() {
         {/* Footer */}
         <TrackerFooter />
       </section>
-    </main>
+    </AppShell>
   );
 }
 

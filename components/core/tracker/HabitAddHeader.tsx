@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { setHabit } from "@/store/trackerSlice";
+import { setHabit, clearAll, saveTrackerSnapshot } from "@/store/trackerSlice";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import { enqueueToast } from "@/store/uiSlice";
 
 interface HabitAddHeaderProps {
   onHabitAdded?: () => void;
@@ -36,9 +37,21 @@ export default function HabitAddHeader({ onHabitAdded }: HabitAddHeaderProps) {
     }
   };
 
+  const handleClearAll = async () => {
+    if (!confirm("Clear all progress? This will erase all marks for this user.")) return;
+    dispatch(clearAll());
+    try {
+      await dispatch(saveTrackerSnapshot()).unwrap();
+      dispatch(enqueueToast({ tone: "success", message: "Progress cleared." }));
+    } catch (err) {
+      console.error(err);
+      dispatch(enqueueToast({ tone: "error", message: "Failed to clear progress." }));
+    }
+  };
+
   return (
     <div className="space-y-3 rounded-3xl border-2 border-slate-900 bg-gradient-to-br from-slate-900 to-slate-800 p-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <div>
           <h3 className="font-brand-display text-2xl text-white">Add New Habit</h3>
           <p className="mt-1 text-sm text-slate-200">
@@ -47,13 +60,22 @@ export default function HabitAddHeader({ onHabitAdded }: HabitAddHeaderProps) {
               : "All 10 habit slots are full"}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => setIsExpanded(!isExpanded)}
-          className="rounded-full bg-white px-4 py-2 text-sm font-bold text-slate-900 transition hover:bg-slate-100"
-        >
-          {isExpanded ? "Cancel" : "Add"}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleClearAll}
+            className="rounded-full border border-rose-300 bg-rose-50 px-4 py-2 text-sm font-bold text-rose-700 hover:bg-rose-100 transition"
+          >
+            Clear All
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="rounded-full bg-white px-4 py-2 text-sm font-bold text-slate-900 transition hover:bg-slate-100"
+          >
+            {isExpanded ? "Cancel" : "Add"}
+          </button>
+        </div>
       </div>
 
       {isExpanded && firstEmptyIndex !== -1 && (

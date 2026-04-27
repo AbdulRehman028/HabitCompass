@@ -112,6 +112,83 @@ export default function Home() {
             </article>
           ))}
         </div>
+
+        {/* Features */}
+        <section className="mt-20 space-y-6">
+          <h2 className="font-brand-display text-3xl text-slate-900">Why HabitCompass</h2>
+          <p className="max-w-2xl text-base text-slate-600">Small daily wins compound. HabitCompass gives you clarity, momentum, and low-friction tracking to keep habits alive.</p>
+
+          <div className="grid gap-6 sm:grid-cols-3">
+            <div className="rounded-2xl border border-slate-200 bg-white p-6">
+              <h3 className="font-semibold text-slate-900">Simple Tracking</h3>
+              <p className="mt-2 text-sm text-slate-600">Tap days to mark complete, missed or partial. Fast, keyboard-friendly, and mobile-first.</p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white p-6">
+              <h3 className="font-semibold text-slate-900">Visual Momentum</h3>
+              <p className="mt-2 text-sm text-slate-600">See trends, streaks and score graphs so you know what’s working and when to adjust.</p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white p-6">
+              <h3 className="font-semibold text-slate-900">Cloud Sync</h3>
+              <p className="mt-2 text-sm text-slate-600">Your progress saves to your Supabase account — sign in and access it across devices.</p>
+            </div>
+          </div>
+        </section>
+
+        {/* How it works */}
+        <section className="mt-12 space-y-6">
+          <h2 className="font-brand-display text-3xl text-slate-900">How it Works</h2>
+          <div className="grid gap-6 sm:grid-cols-3">
+            <div className="rounded-2xl border border-slate-200 bg-white p-6">
+              <p className="text-xs font-bold uppercase text-slate-500">1. Create</p>
+              <p className="mt-2 text-sm text-slate-600">Add the habits you care about and set weekly targets.</p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white p-6">
+              <p className="text-xs font-bold uppercase text-slate-500">2. Track</p>
+              <p className="mt-2 text-sm text-slate-600">Tap each day as you complete the habit — the grid updates instantly.</p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white p-6">
+              <p className="text-xs font-bold uppercase text-slate-500">3. Improve</p>
+              <p className="mt-2 text-sm text-slate-600">Use insights to spot your best days and keep the chain unbroken.</p>
+            </div>
+          </div>
+        </section>
+
+        {/* Testimonials */}
+        <section className="mt-12 space-y-6">
+          <h2 className="font-brand-display text-3xl text-slate-900">Trusted by focused humans</h2>
+          <div className="grid gap-6 sm:grid-cols-3">
+            <blockquote className="rounded-2xl border border-slate-200 bg-white p-6">
+              <p className="text-sm text-slate-700">“HabitCompass helped me build a morning ritual — seeing the chain made all the difference.”</p>
+              <footer className="mt-3 text-xs font-bold text-slate-500">— Alex, Product Manager</footer>
+            </blockquote>
+            <blockquote className="rounded-2xl border border-slate-200 bg-white p-6">
+              <p className="text-sm text-slate-700">“The weekly insights are actionable — now I plan my week around my best days.”</p>
+              <footer className="mt-3 text-xs font-bold text-slate-500">— Priya, Designer</footer>
+            </blockquote>
+            <blockquote className="rounded-2xl border border-slate-200 bg-white p-6">
+              <p className="text-sm text-slate-700">“Saved me from losing progress when I switched devices — syncing worked flawlessly.”</p>
+              <footer className="mt-3 text-xs font-bold text-slate-500">— Jamal, Developer</footer>
+            </blockquote>
+          </div>
+        </section>
+
+        {/* CTA */}
+        <section className="mt-12 rounded-2xl border border-slate-200 bg-slate-900 p-8 text-center text-white">
+          <h3 className="font-brand-display text-2xl">Start your month with momentum</h3>
+          <p className="mt-2 text-sm max-w-2xl mx-auto text-slate-200">Create an account and see your progress build day by day.</p>
+          <div className="mt-4 flex items-center justify-center gap-3">
+            <Link href="/signup" className="rounded-full bg-amber-400 px-6 py-3 font-bold text-slate-900">Create account</Link>
+            <Link href="/dashboard" className="rounded-full border border-white/20 px-6 py-3 font-bold">Open dashboard</Link>
+          </div>
+        </section>
+
+        {/* Footer */}
+        <footer className="mt-16 border-t border-slate-200 pt-8">
+          <div className="flex items-center justify-between">
+            <p className="font-brand-display text-lg">HabitCompass</p>
+            <div className="text-sm text-slate-600">© {new Date().getFullYear()} HabitCompass</div>
+          </div>
+        </footer>
       </section>
     </main>
   );

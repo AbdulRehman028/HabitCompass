@@ -1,20 +1,18 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { isSupabaseConfigured, supabaseBrowser } from "@/lib/supabaseBrowser";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { enqueueToast } from "@/store/uiSlice";
 import { computeHabitStreakSummary } from "@/components/core/tracker/streakEngine";
+import AppShell from "@/components/common/AppShell";
 
 export default function InsightsPage() {
   const router = useRouter();
   const dispatch = useAppDispatch();
   const snapshot = useAppSelector((state) => state.tracker.snapshot);
   const [isCheckingSession, setIsCheckingSession] = useState(true);
-  const [userEmail, setUserEmail] = useState<string | null>(null);
-  const [isSigningOut, setIsSigningOut] = useState(false);
 
   const weekDays = useMemo(() => ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"], []);
 
@@ -111,21 +109,6 @@ export default function InsightsPage() {
     };
   }, [weeklyCompletionByDay]);
 
-  const handleSignOut = async () => {
-    setIsSigningOut(true);
-
-    const { error } = await supabaseBrowser.auth.signOut({ scope: "local" });
-    if (error) {
-      dispatch(enqueueToast({ tone: "error", message: "Could not sign out. Please try again." }));
-      setIsSigningOut(false);
-      return;
-    }
-
-    dispatch(enqueueToast({ tone: "info", message: "Signed out successfully." }));
-    router.replace("/");
-    router.refresh();
-  };
-
   useEffect(() => {
     let active = true;
 
@@ -151,7 +134,6 @@ export default function InsightsPage() {
         return;
       }
 
-      setUserEmail(session.user.email || null);
       setIsCheckingSession(false);
     };
 
@@ -190,8 +172,8 @@ export default function InsightsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 px-4 py-6 sm:px-6">
-      <section className="mx-auto max-w-3xl space-y-6">
+    <AppShell>
+      <section className="mx-auto max-w-4xl space-y-6">
         {/* Header */}
         <header className="rounded-4xl border border-slate-200 bg-white p-6 shadow-[0_20px_60px_rgba(15,23,42,0.08)]">
           <p className="text-xs font-bold uppercase tracking-[0.18em] text-violet-600">Insights</p>
@@ -287,46 +269,8 @@ export default function InsightsPage() {
           </div>
         </div>
 
-        {/* Navigation Footer */}
-        <div className="space-y-4 rounded-4xl border border-slate-200 bg-white p-6 shadow-[0_20px_60px_rgba(15,23,42,0.08)]">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Account</p>
-              <p className="mt-1 font-semibold text-slate-900">{userEmail}</p>
-            </div>
-            <button
-              type="button"
-              onClick={handleSignOut}
-              disabled={isSigningOut}
-              className="rounded-full border-2 border-slate-900 bg-slate-900 px-4 py-2 font-bold text-white transition hover:-translate-y-0.5 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {isSigningOut ? "Signing out..." : "Sign Out"}
-            </button>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-3">
-            <Link
-              href="/dashboard"
-              className="flex items-center justify-center gap-2 rounded-full border-2 border-slate-900 bg-slate-900 px-4 py-3 font-bold text-white transition hover:-translate-y-0.5 hover:bg-slate-800"
-            >
-              Today
-            </Link>
-            <Link
-              href="/overview"
-              className="flex items-center justify-center gap-2 rounded-full border-2 border-slate-300 bg-white px-4 py-3 font-bold text-slate-900 transition hover:border-slate-400 hover:bg-slate-50"
-            >
-              Monthly Tracker
-            </Link>
-            <Link
-              href="/habit-tracker"
-              className="flex items-center justify-center gap-2 rounded-full border-2 border-slate-300 bg-white px-4 py-3 font-bold text-slate-900 transition hover:border-slate-400 hover:bg-slate-50"
-            >
-              Weekly Goals
-            </Link>
-          </div>
-        </div>
       </section>
-    </main>
+    </AppShell>
   );
 }
 

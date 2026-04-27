@@ -7,7 +7,7 @@ import { setHabit, toggleTrackerCell } from "@/store/trackerSlice";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 
 const MONTH_DAYS = 31;
-const WEEKDAYS_SHORT = ["S", "M", "T", "W", "T", "F", "S"];
+const WEEKDAYS_SHORT = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 
 export default function BasicHabitTrackerTable() {
   const dispatch = useAppDispatch();
@@ -109,8 +109,8 @@ export default function BasicHabitTrackerTable() {
           <div className="space-y-6">
             {/* Weekday Headers */}
             <div className="grid grid-cols-7 gap-2">
-              {WEEKDAYS_SHORT.map((day) => (
-                <div key={day} className="text-center text-xs font-bold uppercase text-slate-500">
+              {WEEKDAYS_SHORT.map((day, index) => (
+                <div key={index} className="text-center text-xs font-bold uppercase text-slate-500">
                   {day}
                 </div>
               ))}

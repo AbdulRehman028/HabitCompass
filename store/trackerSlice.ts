@@ -12,12 +12,20 @@ export type TrackerSnapshot = {
   habitTags: string[][];
   trackerMarks: CellState[][];
   scoreMarks: CellState[][];
+  // Optional custom range stored as ISO date strings when user selects custom ranges
+  rangeStartISO?: string;
+  rangeEndISO?: string;
+  // User notes for the tracker session
+  notes?: string;
 };
 
 type TrackerState = {
   snapshot: TrackerSnapshot;
   clientId: string;
   hasLoadedRemote: boolean;
+  // when true, skip the next automatic save (protects against overwriting remote data
+  // immediately after initialize when no snapshot was returned)
+  skipAutosaveAfterInit: boolean;
   isLoading: boolean;
 };
 
@@ -87,6 +95,9 @@ function createEmptySnapshot(): TrackerSnapshot {
     habitTags: Array.from({ length: HABIT_ROWS }, () => [] as string[]),
     trackerMarks: createMatrix(HABIT_ROWS, DAYS),
     scoreMarks: createMatrix(SCORE_ROWS, DAYS),
+    rangeStartISO: "",
+    rangeEndISO: "",
+    notes: "",
   };
 }
 
@@ -137,6 +148,9 @@ function normalizeSnapshot(raw: Partial<TrackerSnapshot> | null | undefined): Tr
     }),
     trackerMarks: normalizeMatrix(parsed.trackerMarks, HABIT_ROWS, DAYS),
     scoreMarks: normalizeMatrix(parsed.scoreMarks, SCORE_ROWS, DAYS),
+    rangeStartISO: typeof parsed.rangeStartISO === "string" ? parsed.rangeStartISO : "",
+    rangeEndISO: typeof parsed.rangeEndISO === "string" ? parsed.rangeEndISO : "",
+    notes: typeof parsed.notes === "string" ? parsed.notes : "",
   };
 }
 
@@ -238,6 +252,7 @@ const initialState: TrackerState = {
   snapshot: createEmptySnapshot(),
   clientId: "",
   hasLoadedRemote: false,
+  skipAutosaveAfterInit: false,
   isLoading: false,
 };
 
@@ -250,6 +265,13 @@ const trackerSlice = createSlice({
     },
     setMonth(state, action: PayloadAction<string>) {
       state.snapshot.month = action.payload;
+    },
+    setCustomRange(state, action: PayloadAction<{ startISO: string; endISO: string }>) {
+      state.snapshot.rangeStartISO = action.payload.startISO;
+      state.snapshot.rangeEndISO = action.payload.endISO;
+    },
+    setNotes(state, action: PayloadAction<string>) {
+      state.snapshot.notes = action.payload;
     },
     clearAll(state) {
       state.snapshot = createEmptySnapshot();
@@ -297,6 +319,10 @@ const trackerSlice = createSlice({
 
       state.snapshot.scoreMarks[rowIndex][dayIndex] = nextValue;
     },
+    // acknowledge and clear the single autosave skip flag
+    acknowledgeAutosaveSkip(state) {
+      state.skipAutosaveAfterInit = false;
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -308,6 +334,12 @@ const trackerSlice = createSlice({
         state.clientId = action.payload.clientId;
         if (action.payload.snapshot) {
           state.snapshot = action.payload.snapshot;
+          state.skipAutosaveAfterInit = false;
+        } else {
+          // no remote snapshot found — avoid immediately overwriting any server state
+          // in case the GET failed or returned null unexpectedly. The next autosave
+          // will be skipped once and then normal autosave resumes.
+          state.skipAutosaveAfterInit = true;
         }
         state.hasLoadedRemote = true;
       })
@@ -318,7 +350,19 @@ const trackerSlice = createSlice({
   },
 });
 
-export const { setName, setMonth, clearAll, setHabit, setHabitTarget, setHabitCategory, setHabitTags, toggleTrackerCell, toggleScoreCell } =
-  trackerSlice.actions;
+export const {
+  setName,
+  setMonth,
+  setCustomRange,
+  setNotes,
+  clearAll,
+  setHabit,
+  setHabitTarget,
+  setHabitCategory,
+  setHabitTags,
+  toggleTrackerCell,
+  toggleScoreCell,
+  acknowledgeAutosaveSkip,
+} = trackerSlice.actions;
 
 export default trackerSlice.reducer;

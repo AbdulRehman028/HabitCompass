@@ -10,6 +10,7 @@ import { enqueueToast } from "@/store/uiSlice";
 export default function SignupPage() {
   const router = useRouter();
   const dispatch = useAppDispatch();
+  const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -55,6 +56,12 @@ export default function SignupPage() {
     setError("");
     setMessage("");
 
+    if (!fullName.trim()) {
+      dispatch(enqueueToast({ tone: "error", message: "Please enter your name." }));
+      setError("Please enter your name.");
+      return;
+    }
+
     if (password.length < 6) {
       dispatch(enqueueToast({ tone: "error", message: "Password must be at least 6 characters." }));
       setError("Password must be at least 6 characters.");
@@ -73,6 +80,11 @@ export default function SignupPage() {
       const { data, error: signupError } = await supabaseBrowser.auth.signUp({
         email: email.trim(),
         password,
+        options: {
+          data: {
+            full_name: fullName.trim(),
+          },
+        },
       });
 
       if (signupError) {
@@ -109,6 +121,19 @@ export default function SignupPage() {
       footerLinkHref="/login"
     >
       <form onSubmit={handleSubmit} className="space-y-4">
+        <label className="block text-sm font-bold text-zinc-700" htmlFor="signup-fullname">
+          Full Name
+        </label>
+        <input
+          id="signup-fullname"
+          type="text"
+          value={fullName}
+          onChange={(event) => setFullName(event.target.value)}
+          required
+          autoComplete="name"
+          className="w-full rounded-xl border-2 border-zinc-300 bg-white px-4 py-3 text-sm font-semibold outline-none transition focus:border-zinc-900"
+        />
+
         <label className="block text-sm font-bold text-zinc-700" htmlFor="signup-email">
           Email
         </label>
