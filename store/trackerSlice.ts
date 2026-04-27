@@ -1,5 +1,6 @@
 import { createAsyncThunk, createSlice, PayloadAction } from "@reduxjs/toolkit";
 import { CellState, DAYS, HABIT_ROWS, SCORE_ROWS } from "@/components/core/tracker/constants";
+import { supabaseBrowser } from "@/lib/supabaseBrowser";
 
 export type TrackerSnapshot = {
   name: string;
@@ -17,7 +18,6 @@ type TrackerState = {
 };
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4000";
-const CLIENT_ID_KEY = "habit-tracker-client-id";
 
 function createMatrix(rows: number, cols: number): CellState[][] {
   return Array.from({ length: rows }, () => Array.from({ length: cols }, () => 0 as CellState));
@@ -62,43 +62,38 @@ function normalizeSnapshot(raw: Partial<TrackerSnapshot> | null | undefined): Tr
   };
 }
 
-function getOrCreateClientId(): string {
-  if (typeof window === "undefined") return "";
-
-  const existing = window.localStorage.getItem(CLIENT_ID_KEY);
-  if (existing) return existing;
-
-  const generated =
-    typeof window.crypto?.randomUUID === "function"
-      ? window.crypto.randomUUID()
-      : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-
-  window.localStorage.setItem(CLIENT_ID_KEY, generated);
-  return generated;
-}
-
 export const initializeTracker = createAsyncThunk(
   "tracker/initialize",
   async () => {
-    const clientId = getOrCreateClientId();
-    if (!clientId) {
+    const {
+      data: { session },
+    } = await supabaseBrowser.auth.getSession();
+
+    const accessToken = session?.access_token;
+    const userId = session?.user?.id || "";
+
+    if (!accessToken || !userId) {
       return { clientId: "", snapshot: null as TrackerSnapshot | null };
     }
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/progress/${clientId}`);
+      const response = await fetch(`${API_BASE_URL}/api/progress/me`, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
       if (!response.ok) {
         throw new Error(`Failed to load progress: ${response.status}`);
       }
 
       const payload = (await response.json()) as { snapshot: Partial<TrackerSnapshot> | null };
       return {
-        clientId,
+        clientId: userId,
         snapshot: payload.snapshot ? normalizeSnapshot(payload.snapshot) : null,
       };
     } catch (error) {
       console.error("Failed to fetch saved tracker progress", error);
-      return { clientId, snapshot: null as TrackerSnapshot | null };
+      return { clientId: userId, snapshot: null as TrackerSnapshot | null };
     }
   }
 );
@@ -107,13 +102,23 @@ export const saveTrackerSnapshot = createAsyncThunk(
   "tracker/save",
   async (_, thunkApi) => {
     const state = thunkApi.getState() as { tracker: TrackerState };
-    const { snapshot, clientId, hasLoadedRemote } = state.tracker;
+    const { snapshot, hasLoadedRemote } = state.tracker;
 
-    if (!clientId || !hasLoadedRemote) return;
+    if (!hasLoadedRemote) return;
 
-    const response = await fetch(`${API_BASE_URL}/api/progress/${clientId}`, {
+    const {
+      data: { session },
+    } = await supabaseBrowser.auth.getSession();
+    const accessToken = session?.access_token;
+
+    if (!accessToken) return;
+
+    const response = await fetch(`${API_BASE_URL}/api/progress/me`, {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
       body: JSON.stringify({ snapshot }),
     });
 

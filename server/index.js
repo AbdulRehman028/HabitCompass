@@ -22,19 +22,37 @@ app.get("/health", (_req, res) => {
   res.json({ ok: true });
 });
 
-app.get("/api/progress/:clientId", async (req, res) => {
-  const { clientId } = req.params;
+async function requireAuth(req, res, next) {
+  const header = req.headers.authorization || "";
+  const token = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
 
-  if (!clientId || clientId.length < 8) {
-    res.status(400).json({ error: "Invalid clientId" });
+  if (!token) {
+    res.status(401).json({ error: "Missing bearer token" });
     return;
   }
+
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser(token);
+
+  if (error || !user) {
+    res.status(401).json({ error: "Invalid or expired token" });
+    return;
+  }
+
+  req.user = user;
+  next();
+}
+
+app.get("/api/progress/me", requireAuth, async (req, res) => {
+  const userId = req.user.id;
 
   try {
     const { data, error } = await supabase
       .from("tracker_progress")
       .select("snapshot, updated_at")
-      .eq("client_id", clientId)
+      .eq("client_id", userId)
       .maybeSingle();
 
     if (error) {
@@ -46,19 +64,14 @@ app.get("/api/progress/:clientId", async (req, res) => {
       updatedAt: data?.updated_at || null,
     });
   } catch (error) {
-    console.error("GET /api/progress failed:", error);
+    console.error("GET /api/progress/me failed:", error);
     res.status(500).json({ error: "Failed to load progress" });
   }
 });
 
-app.put("/api/progress/:clientId", async (req, res) => {
-  const { clientId } = req.params;
+app.put("/api/progress/me", requireAuth, async (req, res) => {
+  const userId = req.user.id;
   const snapshot = req.body?.snapshot;
-
-  if (!clientId || clientId.length < 8) {
-    res.status(400).json({ error: "Invalid clientId" });
-    return;
-  }
 
   if (!snapshot || typeof snapshot !== "object") {
     res.status(400).json({ error: "Invalid snapshot payload" });
@@ -68,7 +81,7 @@ app.put("/api/progress/:clientId", async (req, res) => {
   try {
     const { error } = await supabase.from("tracker_progress").upsert(
       {
-        client_id: clientId,
+        client_id: userId,
         snapshot,
         updated_at: new Date().toISOString(),
       },
@@ -83,7 +96,7 @@ app.put("/api/progress/:clientId", async (req, res) => {
 
     res.json({ ok: true });
   } catch (error) {
-    console.error("PUT /api/progress failed:", error);
+    console.error("PUT /api/progress/me failed:", error);
     res.status(500).json({ error: "Failed to save progress" });
   }
 });
