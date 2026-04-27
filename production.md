@@ -1,6 +1,12 @@
 # HabitCompass – Complete Production Deployment Guide
 
-**HabitCompass** is a Next.js habit tracking application with a Node.js Express backend, deployed on Vercel (frontend) and AWS EC2 (backend).
+**HabitCompass** is a Next.js habit tracking application with a Vercel frontend and Supabase auth/database.
+
+Free-only setup note:
+- Use `habitcompass.vercel.app` for the frontend.
+- Do not add a custom domain unless you want to pay for one later.
+- The EC2/Nginx/Certbot backend path is optional and not part of the free setup.
+- The tracker sync API still needs a backend host, so the free setup focuses on the frontend + Supabase first.
 
 ---
 
@@ -72,9 +78,8 @@
 
 - **GitHub**: For version control and Vercel integration.
 - **Vercel**: For automatic frontend deployment.
-- **AWS**: EC2 instance and related services.
 - **Supabase**: PostgreSQL + auth provider.
-- **Domain Registrar**: To manage DNS (e.g., Route 53, Namecheap, GoDaddy).
+- **AWS**: Optional only if you later choose to run the separate Express backend.
 
 ### Local Development Tools
 
@@ -83,12 +88,10 @@
 - **Git**
 - **SSH client** (for EC2 access)
 
-### Recommended Domain Setup
+### Recommended Free Setup
 
-(Optional but highly recommended for production)
-
-- `app.habitcompass.com` → Vercel frontend
-- `api.habitcompass.com` → EC2 backend
+- `habitcompass.vercel.app` → Vercel frontend
+- Skip custom domains for now.
 
 ---
 
@@ -116,7 +119,7 @@ On your EC2 instance, create `server/.env`:
 ```env
 API_PORT=4000
 NODE_ENV=production
-CORS_ORIGIN=https://app.habitcompass.com
+CORS_ORIGIN=https://habitcompass.vercel.app
 SUPABASE_URL=https://YOUR_PROJECT.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your_service_role_key_here
 ```
@@ -142,7 +145,7 @@ NEXT_PUBLIC_API_BASE_URL=https://api.habitcompass.com
 ```env
 API_PORT=4000
 NODE_ENV=production
-CORS_ORIGIN=https://app.habitcompass.com
+CORS_ORIGIN=https://habitcompass.vercel.app
 SUPABASE_URL=https://YOUR_PROJECT.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your_service_role_key_here
 ```
@@ -186,9 +189,9 @@ create policy "Users can manage their own progress" on tracker_progress
 ### 4.3 Configure Auth URLs
 
 1. Go to **Authentication → Settings**.
-2. Set **Site URL** to `https://app.habitcompass.com` (production) or `http://localhost:3000` (development).
+2. Set **Site URL** to `https://habitcompass.vercel.app` (production) or `http://localhost:3000` (development).
 3. Add **Redirect URLs**:
-   - `https://app.habitcompass.com/auth/callback`
+   - `https://habitcompass.vercel.app/auth/callback`
    - `http://localhost:3000/auth/callback` (dev)
 4. Save.
 
@@ -221,15 +224,9 @@ git push origin main
 5. Add environment variables from section 3.1.
 6. Click **Deploy**.
 
-### 5.3 Add Custom Domain
+### 5.3 Skip Custom Domain
 
-1. In Vercel project, go to **Settings → Domains**.
-2. Add `app.habitcompass.com`.
-3. Vercel shows DNS records to add.
-4. Update DNS records at your registrar:
-   - Point `app.habitcompass.com` A record to Vercel IP.
-   - Or use CNAME to Vercel domain.
-5. DNS propagates in minutes to hours.
+For the free setup, stop here and use `habitcompass.vercel.app`.
 
 ### 5.4 Auto-Deploy on Push
 
@@ -247,7 +244,9 @@ Vercel rebuilds and deploys automatically.
 
 ---
 
-## 6) Backend Deployment on EC2
+## 6) Optional Backend Deployment on EC2
+
+Skip this section if you want the free-only setup.
 
 ### 6.1 Launch EC2 Instance
 
@@ -319,7 +318,7 @@ cd /var/www/habitcompass/HabitCompass/server
 cat > .env << EOF
 API_PORT=4000
 NODE_ENV=production
-CORS_ORIGIN=https://app.habitcompass.com
+CORS_ORIGIN=https://habitcompass.vercel.app
 SUPABASE_URL=https://YOUR_PROJECT.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your_service_role_key_here
 EOF
@@ -375,7 +374,9 @@ pm2 restart habitcompass-api
 
 ---
 
-## 7) Nginx + SSL/TLS Setup
+## 7) Optional Nginx + SSL/TLS Setup
+
+Skip this section in the free-only setup.
 
 ### 7.1 Configure Nginx as Reverse Proxy
 
@@ -471,7 +472,7 @@ sudo systemctl status certbot.timer
 
 ### 8.1 Frontend Checks
 
-1. Open `https://app.habitcompass.com` in browser.
+1. Open `https://habitcompass.vercel.app` in browser.
 2. Verify page loads without errors.
 3. Test signup/login flow.
 4. Add a habit and mark cells.
@@ -508,7 +509,7 @@ curl -vI https://api.habitcompass.com/health 2>&1 | grep -i ssl
 ### 8.3 DNS Verification
 
 ```bash
-nslookup app.habitcompass.com
+nslookup habitcompass.vercel.app
 nslookup api.habitcompass.com
 ```
 
@@ -516,7 +517,7 @@ Should resolve to correct IPs.
 
 ### 8.4 Comprehensive Checklist
 
-- [ ] Frontend loads at `https://app.habitcompass.com`
+- [ ] Frontend loads at `https://habitcompass.vercel.app`
 - [ ] Backend health OK at `https://api.habitcompass.com/health`
 - [ ] User can sign up with email.
 - [ ] User can log in.
@@ -686,8 +687,8 @@ sudo certbot renew
 **Fixes:**
 
 1. Verify Supabase Auth settings:
-   - Site URL: `https://app.habitcompass.com`
-   - Redirect URLs include `https://app.habitcompass.com/auth/callback`
+   - Site URL: `https://habitcompass.vercel.app`
+   - Redirect URLs include `https://habitcompass.vercel.app/auth/callback`
 
 2. Verify frontend env vars are correct:
 
