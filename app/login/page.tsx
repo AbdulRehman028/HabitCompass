@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import AuthShell from "@/components/common/AuthShell";
+import PasswordInput from "@/components/common/PasswordInput";
 import { isSupabaseConfigured, supabaseBrowser } from "@/lib/supabaseBrowser";
 import { useAppDispatch } from "@/store/hooks";
 import { enqueueToast } from "@/store/uiSlice";
@@ -95,17 +96,12 @@ export default function LoginPage() {
           className="w-full rounded-xl border-2 border-zinc-300 bg-white px-4 py-3 text-sm font-semibold outline-none transition focus:border-zinc-900"
         />
 
-        <label className="block text-sm font-bold text-zinc-700" htmlFor="login-password">
-          Password
-        </label>
-        <input
+        <PasswordInput
           id="login-password"
-          type="password"
+          label="Password"
           value={password}
-          onChange={(event) => setPassword(event.target.value)}
-          required
+          onChange={setPassword}
           autoComplete="current-password"
-          className="w-full rounded-xl border-2 border-zinc-300 bg-white px-4 py-3 text-sm font-semibold outline-none transition focus:border-zinc-900"
         />
 
         {error ? (

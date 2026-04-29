@@ -4,7 +4,12 @@ const cors = require("cors");
 const dotenv = require("dotenv");
 const path = require("path");
 
-dotenv.config({ path: path.join(__dirname, ".env") });
+const envCandidates = [path.join(__dirname, ".env"), path.join(__dirname, "..", ".env")];
+
+for (const envPath of envCandidates) {
+  const result = dotenv.config({ path: envPath });
+  if (!result.error) break;
+}
 
 const supabase = require("./supabaseClient");
 
@@ -80,11 +85,12 @@ app.put("/api/progress/me", requireAuth, async (req, res) => {
   }
 
   try {
+    const updatedAt = new Date().toISOString();
     const { error } = await supabase.from("tracker_progress").upsert(
       {
         client_id: userId,
         snapshot,
-        updated_at: new Date().toISOString(),
+        updated_at: updatedAt,
       },
       {
         onConflict: "client_id",
@@ -95,7 +101,7 @@ app.put("/api/progress/me", requireAuth, async (req, res) => {
       throw error;
     }
 
-    res.json({ ok: true });
+    res.json({ ok: true, updatedAt });
   } catch (error) {
     console.error("PUT /api/progress/me failed:", error);
     res.status(500).json({ error: "Failed to save progress" });

@@ -29,7 +29,66 @@ type TrackerState = {
   isLoading: boolean;
 };
 
+type TrackerCacheEntry = {
+  snapshot: TrackerSnapshot;
+  updatedAt: string | null;
+};
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4000";
+const TRACKER_CACHE_PREFIX = "habitcompass:tracker-cache:";
+
+function getTrackerCacheKey(userId: string) {
+  return `${TRACKER_CACHE_PREFIX}${userId}`;
+}
+
+function canUseBrowserStorage() {
+  return typeof window !== "undefined" && typeof window.localStorage !== "undefined";
+}
+
+function readTrackerCache(userId: string): TrackerCacheEntry | null {
+  if (!canUseBrowserStorage()) return null;
+
+  try {
+    const rawValue = window.localStorage.getItem(getTrackerCacheKey(userId));
+    if (!rawValue) return null;
+
+    const parsed = JSON.parse(rawValue) as Partial<TrackerCacheEntry>;
+    if (!parsed.snapshot) return null;
+
+    return {
+      snapshot: normalizeSnapshot(parsed.snapshot),
+      updatedAt: typeof parsed.updatedAt === "string" && parsed.updatedAt.trim() ? parsed.updatedAt : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writeTrackerCache(userId: string, snapshot: TrackerSnapshot, updatedAt: string | null) {
+  if (!canUseBrowserStorage()) return;
+
+  try {
+    window.localStorage.setItem(
+      getTrackerCacheKey(userId),
+      JSON.stringify({ snapshot, updatedAt })
+    );
+  } catch {
+    // Ignore storage errors so tracker sync still works.
+  }
+}
+
+function isRemoteSnapshotNewer(remoteUpdatedAt: string | null | undefined, cachedUpdatedAt: string | null | undefined) {
+  if (!cachedUpdatedAt) return true;
+  if (!remoteUpdatedAt) return false;
+
+  const remoteTime = Date.parse(remoteUpdatedAt);
+  const cachedTime = Date.parse(cachedUpdatedAt);
+
+  if (Number.isNaN(remoteTime)) return false;
+  if (Number.isNaN(cachedTime)) return true;
+
+  return remoteTime >= cachedTime;
+}
 
 async function getAccessToken(): Promise<string | null> {
   const {
@@ -169,7 +228,17 @@ export const initializeTracker = createAsyncThunk(
           message: "Please log in to load your progress.",
         })
       );
-      return { clientId: "", snapshot: null as TrackerSnapshot | null };
+      return { clientId: "", snapshot: null as TrackerSnapshot | null, hasLocalCache: false, shouldSkipAutosaveAfterInit: true };
+    }
+
+    const cachedEntry = readTrackerCache(userId);
+    if (cachedEntry) {
+      thunkApi.dispatch(
+        hydrateTrackerCache({
+          clientId: userId,
+          snapshot: cachedEntry.snapshot,
+        })
+      );
     }
 
     try {
@@ -193,10 +262,25 @@ export const initializeTracker = createAsyncThunk(
         throw new Error(`Failed to load progress: ${response.status}`);
       }
 
-      const payload = (await response.json()) as { snapshot: Partial<TrackerSnapshot> | null };
+      const payload = (await response.json()) as { snapshot: Partial<TrackerSnapshot> | null; updatedAt?: string | null };
+      const remoteSnapshot = payload.snapshot ? normalizeSnapshot(payload.snapshot) : null;
+      const shouldUseRemote = Boolean(remoteSnapshot) && isRemoteSnapshotNewer(payload.updatedAt ?? null, cachedEntry?.updatedAt ?? null);
+
+      if (remoteSnapshot && shouldUseRemote) {
+        writeTrackerCache(userId, remoteSnapshot, payload.updatedAt ?? new Date().toISOString());
+        return {
+          clientId: userId,
+          snapshot: remoteSnapshot,
+          hasLocalCache: Boolean(cachedEntry),
+          shouldSkipAutosaveAfterInit: false,
+        };
+      }
+
       return {
         clientId: userId,
-        snapshot: payload.snapshot ? normalizeSnapshot(payload.snapshot) : null,
+        snapshot: null as TrackerSnapshot | null,
+        hasLocalCache: Boolean(cachedEntry),
+        shouldSkipAutosaveAfterInit: !cachedEntry && !remoteSnapshot,
       };
     } catch (error) {
       console.error("Failed to fetch saved tracker progress", error);
@@ -206,7 +290,12 @@ export const initializeTracker = createAsyncThunk(
           message: "Could not load progress. Check connection and try again.",
         })
       );
-      return { clientId: userId, snapshot: null as TrackerSnapshot | null };
+      return {
+        clientId: userId,
+        snapshot: null as TrackerSnapshot | null,
+        hasLocalCache: Boolean(cachedEntry),
+        shouldSkipAutosaveAfterInit: !cachedEntry,
+      };
     }
   }
 );
@@ -245,6 +334,11 @@ export const saveTrackerSnapshot = createAsyncThunk(
       }
       throw new Error(`Failed to save progress: ${response.status}`);
     }
+
+    const payload = (await response.json().catch(() => null)) as { updatedAt?: string | null } | null;
+    if (state.tracker.clientId) {
+      writeTrackerCache(state.tracker.clientId, snapshot, payload?.updatedAt ?? new Date().toISOString());
+    }
   }
 );
 
@@ -260,6 +354,11 @@ const trackerSlice = createSlice({
   name: "tracker",
   initialState,
   reducers: {
+    hydrateTrackerCache(state, action: PayloadAction<{ clientId: string; snapshot: TrackerSnapshot }>) {
+      state.clientId = action.payload.clientId;
+      state.snapshot = action.payload.snapshot;
+      state.skipAutosaveAfterInit = false;
+    },
     setName(state, action: PayloadAction<string>) {
       state.snapshot.name = action.payload;
     },
@@ -334,13 +433,8 @@ const trackerSlice = createSlice({
         state.clientId = action.payload.clientId;
         if (action.payload.snapshot) {
           state.snapshot = action.payload.snapshot;
-          state.skipAutosaveAfterInit = false;
-        } else {
-          // no remote snapshot found — avoid immediately overwriting any server state
-          // in case the GET failed or returned null unexpectedly. The next autosave
-          // will be skipped once and then normal autosave resumes.
-          state.skipAutosaveAfterInit = true;
         }
+        state.skipAutosaveAfterInit = action.payload.shouldSkipAutosaveAfterInit;
         state.hasLoadedRemote = true;
       })
       .addCase(initializeTracker.rejected, (state) => {
@@ -351,6 +445,7 @@ const trackerSlice = createSlice({
 });
 
 export const {
+  hydrateTrackerCache,
   setName,
   setMonth,
   setCustomRange,

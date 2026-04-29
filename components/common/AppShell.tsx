@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { ReactNode, useEffect, useMemo, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
-import { useAppDispatch } from "@/store/hooks";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import { initializeTracker } from "@/store/trackerSlice";
 import { enqueueToast } from "@/store/uiSlice";
 
 type AppShellProps = {
@@ -25,8 +26,9 @@ const navItems: NavItem[] = [
 
 export default function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
-  const router = useRouter();
   const dispatch = useAppDispatch();
+  const hasLoadedRemote = useAppSelector((state) => state.tracker.hasLoadedRemote);
+  const isTrackerLoading = useAppSelector((state) => state.tracker.isLoading);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [userName, setUserName] = useState("");
   const [userEmail, setUserEmail] = useState("");
@@ -54,6 +56,37 @@ export default function AppShell({ children }: AppShellProps) {
     };
   }, []);
 
+  useEffect(() => {
+    if (hasLoadedRemote || isTrackerLoading) return;
+
+    let active = true;
+
+    const bootstrapTracker = async () => {
+      const {
+        data: { session },
+      } = await supabaseBrowser.auth.getSession();
+
+      if (!active || !session) return;
+      void dispatch(initializeTracker());
+    };
+
+    void bootstrapTracker();
+
+    const {
+      data: { subscription },
+    } = supabaseBrowser.auth.onAuthStateChange((event, session) => {
+      if (!active) return;
+      if (event === "SIGNED_IN" && session && !hasLoadedRemote && !isTrackerLoading) {
+        void dispatch(initializeTracker());
+      }
+    });
+
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
+  }, [dispatch, hasLoadedRemote, isTrackerLoading]);
+
   const handleSignOut = async () => {
     setIsSigningOut(true);
 
@@ -65,8 +98,7 @@ export default function AppShell({ children }: AppShellProps) {
     }
 
     dispatch(enqueueToast({ tone: "info", message: "Signed out successfully." }));
-    router.replace("/");
-    router.refresh();
+    window.location.replace("/login");
   };
 
   const greeting = useMemo(() => {
