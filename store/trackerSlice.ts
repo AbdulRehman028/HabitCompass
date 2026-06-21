@@ -373,7 +373,10 @@ const trackerSlice = createSlice({
       state.snapshot.notes = action.payload;
     },
     clearAll(state) {
+      const { rangeStartISO, rangeEndISO } = state.snapshot;
       state.snapshot = createEmptySnapshot();
+      state.snapshot.rangeStartISO = rangeStartISO;
+      state.snapshot.rangeEndISO = rangeEndISO;
     },
     setHabit(state, action: PayloadAction<{ index: number; value: string }>) {
       const { index, value } = action.payload;

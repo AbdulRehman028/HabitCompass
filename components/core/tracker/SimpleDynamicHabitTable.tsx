@@ -8,9 +8,23 @@ import { useAppDispatch, useAppSelector } from "@/store/hooks";
 
 interface SimpleDynamicHabitTableProps {
   daysToShow: number; // 7, 15, 20, 30, 31, or custom
+  customStart?: Date;
+  customEnd?: Date;
 }
 
-export default function SimpleDynamicHabitTable({ daysToShow }: SimpleDynamicHabitTableProps) {
+function buildCustomRangeLabels(start: Date, daysToShow: number): string[] {
+  return Array.from({ length: daysToShow }, (_, dayIndex) => {
+    const date = new Date(start);
+    date.setDate(start.getDate() + dayIndex);
+    return String(date.getDate());
+  });
+}
+
+export default function SimpleDynamicHabitTable({
+  daysToShow,
+  customStart,
+  customEnd,
+}: SimpleDynamicHabitTableProps) {
   const dispatch = useAppDispatch();
   const habits = useAppSelector((state) => state.tracker.snapshot.habits);
   const trackerMarks = useAppSelector((state) => state.tracker.snapshot.trackerMarks);
@@ -24,6 +38,14 @@ export default function SimpleDynamicHabitTable({ daysToShow }: SimpleDynamicHab
     [habits]
   );
 
+  const headerLabels = useMemo(() => {
+    if (customStart && customEnd) {
+      return buildCustomRangeLabels(customStart, daysToShow);
+    }
+
+    return Array.from({ length: daysToShow }, (_, idx) => String(idx + 1));
+  }, [customEnd, customStart, daysToShow]);
+
   const handleCellClick = (rowIndex: number, dayIndex: number) => {
     dispatch(toggleTrackerCell({ rowIndex, dayIndex }));
   };
@@ -33,15 +55,15 @@ export default function SimpleDynamicHabitTable({ daysToShow }: SimpleDynamicHab
       <table className="w-full border-collapse">
         <thead>
           <tr>
-            <th className="sticky left-0 z-20 min-w-[120px] bg-slate-900 px-3 py-3 text-left text-xs font-bold uppercase tracking-[0.1em] text-white">
+            <th className="sticky left-0 z-20 min-w-30 bg-slate-900 px-3 py-3 text-left text-xs font-bold uppercase tracking-widest text-white">
               Habits
             </th>
-            {Array.from({ length: daysToShow }, (_, idx) => (
+            {headerLabels.map((label, idx) => (
               <th
                 key={idx}
                 className="border border-slate-200 bg-slate-100 px-2 py-2 text-center text-xs font-bold text-slate-600"
               >
-                {idx + 1}
+                {label}
               </th>
             ))}
           </tr>
@@ -49,7 +71,7 @@ export default function SimpleDynamicHabitTable({ daysToShow }: SimpleDynamicHab
         <tbody>
           {habitRows.map((row) => (
             <tr key={row.rowIndex} className="hover:bg-slate-50">
-              <td className="sticky left-0 z-10 min-w-[120px] border border-slate-200 bg-white px-3 py-3 font-semibold text-slate-900">
+              <td className="sticky left-0 z-10 min-w-30 border border-slate-200 bg-white px-3 py-3 font-semibold text-slate-900">
                 {row.name}
               </td>
               {Array.from({ length: daysToShow }, (_, dayIdx) => {

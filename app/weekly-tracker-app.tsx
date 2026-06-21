@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import HabitAddHeader from "@/components/core/tracker/HabitAddHeader";
 import DateRangeSelector, {
   type DateRange,
@@ -21,41 +21,43 @@ import {
 export default function WeeklyTrackerApp() {
   const dispatch = useAppDispatch();
   const habits = useAppSelector((state) => state.tracker.snapshot.habits);
+  const snapshot = useAppSelector((s) => s.tracker.snapshot);
   const [selectedRange, setSelectedRange] = useState<DateRange>("30");
   const [customStart, setCustomStart] = useState<Date>();
   const [customEnd, setCustomEnd] = useState<Date>();
+  const hasHydratedCustomRange = useRef(false);
 
   useEffect(() => {
     void dispatch(initializeTracker());
   }, [dispatch]);
 
-  // When snapshot loads from remote, hydrate custom range UI
-  const snapshot = useAppSelector((s) => s.tracker.snapshot);
   const skipAutosaveAfterInit = useAppSelector(
     (s) => s.tracker.skipAutosaveAfterInit,
   );
   const clientId = useAppSelector((s) => s.tracker.clientId);
   const hasLoadedRemote = useAppSelector((s) => s.tracker.hasLoadedRemote);
+
+  const persistedCustomRange = (() => {
+    if (!snapshot.rangeStartISO || !snapshot.rangeEndISO) return null;
+
+    const start = new Date(snapshot.rangeStartISO);
+    const end = new Date(snapshot.rangeEndISO);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start > end) return null;
+
+    return { start, end };
+  })();
+
   useEffect(() => {
-    if (snapshot.rangeStartISO && snapshot.rangeEndISO) {
-      try {
-        const start = new Date(snapshot.rangeStartISO);
-        const end = new Date(snapshot.rangeEndISO);
-        if (
-          !Number.isNaN(start.getTime()) &&
-          !Number.isNaN(end.getTime()) &&
-          start <= end
-        ) {
-          // eslint-disable-next-line react-hooks/set-state-in-effect
-          setSelectedRange("custom");
-          setCustomStart(start);
-          setCustomEnd(end);
-        }
-      } catch {
-        // ignore
-      }
-    }
-  }, [snapshot.rangeStartISO, snapshot.rangeEndISO]);
+    if (hasHydratedCustomRange.current || !persistedCustomRange) return;
+
+    hasHydratedCustomRange.current = true;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSelectedRange("custom");
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setCustomStart(persistedCustomRange.start);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setCustomEnd(persistedCustomRange.end);
+  }, [persistedCustomRange]);
 
   useEffect(() => {
     if (!clientId || !hasLoadedRemote) return;
@@ -74,12 +76,15 @@ export default function WeeklyTrackerApp() {
 
   const activeHabits = habits.filter((h) => h && h.trim() !== "").length;
 
+  const effectiveCustomStart = customStart;
+  const effectiveCustomEnd = customEnd;
+
   const getDaysToShow = (): number => {
     if (selectedRange === "7") return 7;
     if (selectedRange === "30") return 30;
     if (selectedRange === "31") return 31;
-    if (selectedRange === "custom" && customStart && customEnd) {
-      const diffTime = Math.abs(customEnd.getTime() - customStart.getTime());
+    if (selectedRange === "custom" && effectiveCustomStart && effectiveCustomEnd) {
+      const diffTime = Math.abs(effectiveCustomEnd.getTime() - effectiveCustomStart.getTime());
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
       return diffDays;
     }
@@ -90,8 +95,8 @@ export default function WeeklyTrackerApp() {
     if (selectedRange === "7") return "Last 7 Days";
     if (selectedRange === "30") return "Last 30 Days";
     if (selectedRange === "31") return "Full Month";
-    if (selectedRange === "custom" && customStart && customEnd) {
-      return `${customStart.toLocaleDateString()} - ${customEnd.toLocaleDateString()}`;
+    if (selectedRange === "custom" && effectiveCustomStart && effectiveCustomEnd) {
+      return `${effectiveCustomStart.toLocaleDateString()} - ${effectiveCustomEnd.toLocaleDateString()}`;
     }
     return "All Time";
   };
@@ -104,7 +109,7 @@ export default function WeeklyTrackerApp() {
         {/* Quick Stats */}
         <div className="mt-6 grid gap-3 sm:grid-cols-3">
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <p className="text-xs font-bold uppercase tracking-[0.1em] text-slate-500">
+            <p className="text-xs font-bold uppercase tracking-widest text-slate-500">
               Active Habits
             </p>
             <p className="mt-2 font-brand-display text-2xl text-slate-900">
@@ -112,7 +117,7 @@ export default function WeeklyTrackerApp() {
             </p>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <p className="text-xs font-bold uppercase tracking-[0.1em] text-slate-500">
+            <p className="text-xs font-bold uppercase tracking-widest text-slate-500">
               Date Range
             </p>
             <p className="mt-2 font-semibold text-slate-900 text-sm">
@@ -120,7 +125,7 @@ export default function WeeklyTrackerApp() {
             </p>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <p className="text-xs font-bold uppercase tracking-[0.1em] text-slate-500">
+            <p className="text-xs font-bold uppercase tracking-widest text-slate-500">
               Days Tracked
             </p>
             <p className="mt-2 font-brand-display text-2xl text-slate-900">
@@ -137,19 +142,13 @@ export default function WeeklyTrackerApp() {
           selectedRange={selectedRange}
           onRangeChange={(r) => {
             setSelectedRange(r);
-            // clear custom selection if switching away
-            if (r !== "custom") {
-              setCustomStart(undefined);
-              setCustomEnd(undefined);
-              // also clear persisted custom range metadata
-              void dispatch(setCustomRange({ startISO: "", endISO: "" }));
-            }
           }}
-          customStart={customStart}
-          customEnd={customEnd}
+          customStart={effectiveCustomStart}
+          customEnd={effectiveCustomEnd}
           onCustomRangeChange={(start, end) => {
             setCustomStart(start);
             setCustomEnd(end);
+            hasHydratedCustomRange.current = true;
             // persist custom range ISO to snapshot and save
             void dispatch(
               setCustomRange({
@@ -163,7 +162,11 @@ export default function WeeklyTrackerApp() {
 
         {/* Simple Habit Tracker Table */}
         <div>
-          <SimpleDynamicHabitTable daysToShow={daysToShow} />
+          <SimpleDynamicHabitTable
+            daysToShow={daysToShow}
+            customStart={customStart}
+            customEnd={customEnd}
+          />
         </div>
 
         {/* Notes Section */}
